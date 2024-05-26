@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,13 +12,15 @@ import (
 
 type Config struct {
 	Input struct {
-		File1 string `yaml:"file1"`
-		File2 string `yaml:"file2"`
+		FilePath  string `yaml:"file_path"`
+		FileName1 string `yaml:"file_name_1"`
+		FileName2 string `yaml:"file_name_2"`
 	} `yaml:"input"`
 }
 
 type CompareResult struct {
 	FalseCount int
+	DiffArray  [][]string
 }
 
 func main() {
@@ -25,13 +28,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
-
-	diff, result, err := compareJSON(config.Input.File1, config.Input.File2)
+	file1 := config.Input.FilePath + config.Input.FileName1
+	file2 := config.Input.FilePath + config.Input.FileName2
+	diff, result, err := compareJSON(file1, file2)
 	if err != nil {
 		log.Fatalf("Error comparing JSON files: %v", err)
 	}
+	fmt.Print(diff)
 
-	printComparisonResult(diff, result)
+	// Generate CSV file with comparison result
+	err = writeCSV("comparison_result.csv", result.DiffArray, &config)
+	if err != nil {
+		log.Fatalf("Error writing CSV: %v", err)
+	}
 }
 
 func loadConfig(filePath string) (Config, error) {
@@ -108,6 +117,7 @@ func compareMapObjects(m1 map[string]interface{}, m2 interface{}, path string, r
 		if !ok {
 			diff += fmt.Sprintf("Key '%s' missing in second map at %s\n", key, newPath)
 			result.FalseCount++
+			result.DiffArray = append(result.DiffArray, []string{newPath, "Missing", ""})
 			continue
 		}
 		subDiff := compareMaps(val1, val2, newPath, result)
@@ -120,6 +130,7 @@ func compareMapObjects(m1 map[string]interface{}, m2 interface{}, path string, r
 			newPath := joinPath(path, key)
 			diff += fmt.Sprintf("Key '%s' missing in first map at %s\n", key, newPath)
 			result.FalseCount++
+			result.DiffArray = append(result.DiffArray, []string{newPath, "", "Missing"})
 		}
 	}
 	return diff
@@ -151,7 +162,9 @@ func compareArrayObjects(a1 []interface{}, m2 interface{}, path string, result *
 func comparePrimitiveObjects(v1, v2 interface{}, path string, result *CompareResult) string {
 	if v1 != v2 {
 		result.FalseCount++
-		return fmt.Sprintf("Value mismatch at %s: %v != %v\n", path, v1, v2)
+		diff := fmt.Sprintf("Value mismatch at %s: %v != %v\n", path, v1, v2)
+		result.DiffArray = append(result.DiffArray, []string{path, fmt.Sprintf("%v", v1), fmt.Sprintf("%v", v2)})
+		return diff
 	}
 	return ""
 }
@@ -163,7 +176,24 @@ func joinPath(base, key string) string {
 	return base + "." + key
 }
 
-func printComparisonResult(diff string, result CompareResult) {
-	fmt.Println(diff)
-	fmt.Printf("Compare False Count: %d\n", result.FalseCount)
+func writeCSV(filePath string, data [][]string, config *Config) error {
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("error creating CSV file: %w", err)
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	if err := writer.Write([]string{"Path", config.Input.FileName1, config.Input.FileName2}); err != nil {
+		return fmt.Errorf("error writing CSV header: %w", err)
+	}
+
+	for _, row := range data {
+		if err := writer.Write(row); err != nil {
+			return fmt.Errorf("error writing CSV row: %w", err)
+		}
+	}
+	return nil
 }

@@ -1,0 +1,7 @@
+Path,example.json,example2.json
+data[0].name,Item 1,Item
+data[0].description,Description of item 1,Description of item
+data[1].name,Item 2,Item
+data[1].description,Description of item 2,Description of item
+data[2].name,Item 3,Item
+data[2].description,Description of item 3,Description of item

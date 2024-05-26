@@ -1,3 +1,4 @@
 input:
-  file1: "json-output/example.json"
-  file2: "json-output/example2.json"
+  file_path: json-output/
+  file_name_1: example.json
+  file_name_2: example2.json
